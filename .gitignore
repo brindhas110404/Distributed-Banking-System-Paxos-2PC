@@ -1,0 +1,8 @@
+.DS_Store
+.tools/
+bin/
+*.db
+*.db-*
+*.db-journal
+.env
+.env.*
