@@ -563,10 +563,6 @@ sets, err := csv_parser.ParseCSV("your_test_file.csv")
    - Check server addresses in `shared/serveraddress.go`
    - Ensure network connectivity
 
-## Authors
-
-- Deep Uthale
-
 ## Acknowledgments
 
 This project implements distributed systems concepts including:
