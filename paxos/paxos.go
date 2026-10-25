@@ -3,7 +3,6 @@ package paxos
 import (
 	"distributed-banking/shared"
 	"fmt"
-	"net/rpc"
 )
 
 func FetchLongestTransactionHistory(leaderID string, activeServers []string) ([]shared.Transaction, int) {
@@ -22,12 +21,11 @@ func FetchLongestTransactionHistory(leaderID string, activeServers []string) ([]
 			continue
 		}
 
-		client, err := rpc.Dial("tcp", serverAddr)
+		client, err := shared.GetRPCClient(serverAddr)
 		if err != nil {
 			// fmt.Printf("Failed to connect to server %s: %v\n", serverAddr, err)
 			continue
 		}
-		defer client.Close()
 
 		var serverTransactions []shared.Transaction
 		err = client.Call(fmt.Sprintf("Server.%s.CommittedTransactionsInDB", serverID), struct{}{}, &serverTransactions)
@@ -65,12 +63,11 @@ func PreparePhase(leaderID string, activeServers []string, longestHistory []shar
 			continue
 		}
 
-		client, err := rpc.Dial("tcp", serverAddr)
+		client, err := shared.GetRPCClient(serverAddr)
 		if err != nil {
 			// fmt.Printf("Failed to connect to server %s: %v\n", serverAddr, err)
 			continue
 		}
-		defer client.Close()
 
 		// Send prepare request with the longest history
 		var acknowledgment string
@@ -100,12 +97,11 @@ func AcceptPhase(leaderID string, activeServers []string, singleTransaction shar
 			continue
 		}
 
-		client, err := rpc.Dial("tcp", serverAddr)
+		client, err := shared.GetRPCClient(serverAddr)
 		if err != nil {
 			// fmt.Printf("Failed to connect to server %s: %v\n", serverAddr, err)
 			continue
 		}
-		defer client.Close()
 
 		var reply string
 		err = client.Call(fmt.Sprintf("Server.%s.AcceptTransactions", serverID), singleTransaction, &reply)
@@ -129,12 +125,11 @@ func CommitPhase(leaderID string, activeServers []string, transaction shared.Tra
 			continue
 		}
 
-		client, err := rpc.Dial("tcp", serverAddr)
+		client, err := shared.GetRPCClient(serverAddr)
 		if err != nil {
 			// fmt.Printf("Failed to connect to server %s: %v\n", serverAddr, err)
 			continue
 		}
-		defer client.Close()
 
 		var reply string
 		err = client.Call(fmt.Sprintf("Server.%s.CommitTransactions", serverID), transaction, &reply)
