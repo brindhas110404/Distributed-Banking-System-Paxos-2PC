@@ -17,7 +17,7 @@ func ConnectToServer(serverName string) *rpc.Client {
 		return nil
 	}
 
-	client, err := rpc.Dial("tcp", serverAddress)
+	client, err := shared.GetRPCClient(serverAddress)
 	if err != nil {
 		// fmt.Printf("Error connecting to server %s at %s: %v\n", serverName, serverAddress, err)
 		return nil
@@ -34,7 +34,6 @@ func SendIntraShardTransaction(serverName string, tx shared.Transaction, activeS
 		// fmt.Println("Failed to connect to server, transaction aborted.")
 		return false, time.Since(startTime)
 	}
-	defer client.Close()
 
 	type TransactionRequest struct {
 		Transaction   shared.Transaction
@@ -63,7 +62,6 @@ func SendCrossShardTransaction(serverName string, tx shared.Transaction, activeS
 		// fmt.Println("Failed to connect to server, transaction aborted.")
 		return false, time.Since(startTime)
 	}
-	defer client.Close()
 
 	type TransactionRequest struct {
 		Transaction   shared.Transaction
@@ -97,7 +95,6 @@ func Send2PCCommit(serverID string, transaction shared.Transaction, role string,
 		// fmt.Printf("Error connecting to server %s\n", serverID)
 		return false
 	}
-	defer client.Close()
 
 	// Prepare arguments for the RPC call
 	args := shared.TwoPCArgs{
