@@ -154,8 +154,9 @@ func main() {
 					if err != nil {
 						// fmt.Printf("Error extracting server index: %v\n", err)
 					}
-					convertedTx.ContactServer = serverIndex
-					success, latency := client.SendCrossShardTransaction(contactServerForSource, convertedTx, activeServersForSourceShard, "source")
+					sourceTx := convertedTx // own copy, so the two goroutines don't write the same struct
+					sourceTx.ContactServer = serverIndex
+					success, latency := client.SendCrossShardTransaction(contactServerForSource, sourceTx, activeServersForSourceShard, "source")
 					sourceDone <- struct {
 						success bool
 						latency time.Duration
@@ -167,8 +168,9 @@ func main() {
 					if err != nil {
 						// fmt.Printf("Error extracting server index: %v\n", err)
 					}
-					convertedTx.ContactServer = serverIndex
-					success, latency := client.SendCrossShardTransaction(contactServerForDestination, convertedTx, activeServersForDestinationShard, "destination")
+					destTx := convertedTx // own copy, so the two goroutines don't write the same struct
+					destTx.ContactServer = serverIndex
+					success, latency := client.SendCrossShardTransaction(contactServerForDestination, destTx, activeServersForDestinationShard, "destination")
 					destDone <- struct {
 						success bool
 						latency time.Duration

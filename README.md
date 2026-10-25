@@ -1,4 +1,3 @@
-Distributed Systems
 # Distributed Banking System
 
 A distributed banking system implementing **Paxos consensus protocol** and **Two-Phase Commit (2PC)** for transaction management across multiple clusters and servers. This system ensures consistency, fault tolerance, and atomicity in a distributed environment.
@@ -18,6 +17,7 @@ A distributed banking system implementing **Paxos consensus protocol** and **Two
 - [Setup Instructions](#setup-instructions)
 - [Usage](#usage)
 - [Performance Metrics](#performance-metrics)
+- [Testing and Results](#testing-and-results)
 
 ## Overview
 
@@ -105,6 +105,7 @@ This distributed banking system simulates a multi-cluster, multi-server banking 
 ```
 distributed-banking/
 ├── main.go                    # Main application entry point
+├── load_test.py               # Load test: 1,000 transfers with failures, checks replicas
 ├── go.mod                     # Go module dependencies
 ├── go.sum                     # Dependency checksums
 │
@@ -135,12 +136,12 @@ distributed-banking/
 │   ├── filteractiveservers.go # Server filtering utilities
 │   ├── caluculatenewshards.go # Shard redistribution logic
 │   ├── serverstatus.go       # Server status tracking
+│   ├── rpcpool.go            # Reusable RPC connection per server
 │   └── transactionqueue.go   # Transaction queue implementation
 │
-└── test_data/                 # Test case files
-    ├── guide.csv
-    ├── lab1_Test.csv
-    └── New_Test_Cases_-_Lab3.csv
+├── guide.csv                  # Test case files
+├── lab1_Test.csv
+└── New_Test_Cases_-_Lab3.csv
 ```
 
 ## Core Components
@@ -396,8 +397,8 @@ Client → Dest Contact Server (async)   ──┼─→ Both complete
 
 1. **Clone the repository**:
    ```bash
-   git clone <repository-url>
-   cd <repo-name>/distributed-banking
+   git clone https://github.com/brindhas110404/Distributed-Banking-System-Paxos-2PC.git
+   cd Distributed-Banking-System-Paxos-2PC
    ```
 
 2. **Install dependencies**:
@@ -529,17 +530,57 @@ The system tracks and reports:
 6. **Load Balancing**: Distribute transactions across multiple contact servers
 7. **Monitoring Dashboard**: Real-time visualization of system state
 
-## Testing
+## Testing and Results
 
-The system includes test case files:
-- `guide.csv`: Example transactions
+### Included test cases
+- `guide.csv`: example transactions
 - `lab1_Test.csv`: Lab 1 test cases
-- `New_Test_Cases_-_Lab3.csv`: Lab 3 test cases
+- `New_Test_Cases_-_Lab3.csv`: Lab 3 test cases (used by default)
 
-To use a different test file, modify the filename in `main.go`:
+To use a different test file, change the filename in `main.go`:
 ```go
 sets, err := csv_parser.ParseCSV("your_test_file.csv")
 ```
+
+### Load test
+
+`load_test.py` generates a larger workload, runs the system with 3 clusters of 3 servers, and checks the result directly in the SQLite databases.
+
+```bash
+go build -o bin/banking .
+python3 load_test.py            # 1,000 transfers (50 sets of 20)
+python3 load_test.py 25         # 500 transfers
+python3 load_test.py --keep     # also saves the databases to diag_dbs/ for debugging
+```
+
+The workload uses a fixed random seed so runs are repeatable:
+- 1,000 transfers of 1 unit between random accounts (1-3000)
+- About two thirds are cross-shard, so they go through Two-Phase Commit
+- In 10 of the 50 sets, one server in every cluster is down (S3, S6, S9)
+
+After the run it reports committed transactions, average latency, throughput, whether all three replicas in each cluster hold identical balances, and whether the total money in the system is unchanged. The original CSV and databases are restored afterwards.
+
+### Results (MacBook Pro, 1,000 transfers)
+
+| Seed | Committed | Avg latency | Throughput | Replicas identical | Money conserved |
+|---|---|---|---|---|---|
+| 7 | 992 | 14.3 ms | 70 tx/s | yes | yes |
+| 11 | 998 | 13.3 ms | 75 tx/s | yes | yes |
+
+The few uncommitted transfers are aborted safely (for example, an account was locked by an earlier transfer in the same set). Go's race detector (`go build -race`) reports no data races.
+
+### Bugs found by the load test
+
+**1. Recovered replicas double-applied cross-shard commits.**
+On a 2PC commit, every server stored the commit record under a new random ID, so the same commit had a different ID on each replica. When a server that had been down caught up through longest-history recovery, it compared records by ID, treated the other servers' commit records as missing, and applied the balance change a second time. About 50 accounts per cluster ended up off by one.
+Fix: the commit record now uses a deterministic ID (`<transactionID>-C`) on every server (`server/server.go`, `Handle2PCCommit`).
+
+**2. Commits silently stopped after about 940 transfers on macOS.**
+Every RPC opened a new TCP connection (about 19 per transfer) and closed it right away. Under sustained load this exhausted the operating system's available connections; after that every call failed, and because connection errors were ignored, the system kept running without committing anything.
+Fix: one reusable RPC connection per server (`shared/rpcpool.go`), used by `paxos` and `client` instead of dialing for every message.
+
+**3. Data race on cross-shard requests.**
+The race detector found the source and destination goroutines writing the same transaction struct at the same time. Each goroutine now sends its own copy (`main.go`).
 
 ## Troubleshooting
 
