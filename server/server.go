@@ -9,8 +9,6 @@ import (
 	"net/rpc"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type TransactionRequest struct {
@@ -443,7 +441,7 @@ func (s *Server) Handle2PCCommit(args shared.TwoPCArgs, reply *shared.TwoPCReply
 		// fmt.Printf("[DEBUG] Received 2PC commit for transaction %s\n", tx.TransactionID)
 		// Add transaction to the database and change its status to "C"
 
-		if err := database.AddTransaction(s.Database.DB, uuid.New().String(), tx.Source, tx.Destination, tx.Amount, tx.BallotNumber, tx.ContactServer, "C"); err != nil {
+		if err := database.AddTransaction(s.Database.DB, tx.TransactionID+"-C", tx.Source, tx.Destination, tx.Amount, tx.BallotNumber, tx.ContactServer, "C"); err != nil {
 			return fmt.Errorf("failed to add transaction %s: %v", tx.TransactionID, err)
 		}
 		// Unset locks
@@ -496,3 +494,4 @@ func (s *Server) FetchBallotNumber(_ struct{}, reply *int) error {
 	*reply = s.BallotNumber
 	return nil
 }
+	
